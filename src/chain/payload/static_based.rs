@@ -652,6 +652,18 @@ impl PayloadGenerator for BasicPayloadGenerator {
         Ok(transfer_tx(destination, amount)?.with_to(to))
     }
 
+    fn send(
+        &self,
+        destination: Address,
+        amount: HoprBalance,
+        data: &[u8],
+    ) -> payload::Result<Self::TxRequest> {
+        let amount_word = amount.amount().to_be_bytes();
+        Ok(TransactionRequest::default()
+            .with_input(encode_send(destination.into(), &amount_word, data))
+            .with_to(self.contract_addrs.token.into()))
+    }
+
     fn announce(
         &self,
         announcement: AnnouncementData,
@@ -873,6 +885,17 @@ impl PayloadGenerator for SafePayloadGenerator {
             return Err(InvalidArguments("invalid currency"));
         };
         Ok(self.module_exec_tx(to, &value, &call_data))
+    }
+
+    fn send(
+        &self,
+        destination: Address,
+        amount: HoprBalance,
+        data: &[u8],
+    ) -> payload::Result<Self::TxRequest> {
+        let amount_word = amount.amount().to_be_bytes();
+        let call_data = encode_send(destination.into(), &amount_word, data);
+        Ok(self.module_exec_tx(self.contract_addrs.token.into(), &[0u8; 32], &call_data))
     }
 
     fn announce(
