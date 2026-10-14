@@ -778,7 +778,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn send_token_safe_action_should_decode() -> anyhow::Result<()> {
+    async fn send_token_action_should_decode_as_withdraw() -> anyhow::Result<()> {
         let cp = ChainKeypair::from_secret(&PRIVATE_KEY_1)?;
 
         for (tx, payer) in
@@ -804,7 +804,6 @@ mod tests {
                 &[1u8; Address::SIZE].into(),
                 &CONTRACT_ADDRS,
             )?;
-            // A `send` to anything but the announcements contract moves tokens like a `transfer`.
             assert_eq!(
                 action,
                 ParsedHoprChainAction::WithdrawToken(

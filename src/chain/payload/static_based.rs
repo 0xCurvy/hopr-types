@@ -1150,10 +1150,13 @@ mod tests {
         Ok(())
     }
 
-    /// `execTransactionFromModule(token, 0, send(router, 1000, aggregator ‖ note), Call)` as
-    /// hopr-strategy encoded the routed Curvy shield before `send` existed here. The vector is an
-    /// independent reference (hand-built from the ABI, not from either generator), so this checks
-    /// the encoding rather than pinning whatever the generators currently produce.
+    /// `execTransactionFromModule(token, 0, send(recipient, 1000, data), Call)` with 224 bytes of
+    /// data, hand-built from the ABI and independent of both generators, so this checks the
+    /// encoding rather than pinning whatever the generators currently produce.
+    ///
+    /// The user data is 224 bytes, a whole number of words, so this vector does not exercise the
+    /// padding of `send`'s `bytes` tail. That is covered by `cross_verify`'s 70-byte `SEND_DATA`,
+    /// which checks both generators against the `alloy` bindings rather than a fixed vector.
     const ROUTED_SHIELD_MODULE_CALL: &str = concat!(
         "468721a7000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa000000000000000000000000",
         "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
@@ -1170,8 +1173,8 @@ mod tests {
     );
 
     /// `abi.encode(address aggregator, Note note)` for aggregator `0xcc…` and the note
-    /// `(1, 2, 1000, [4, 5], 6)`: the 224 bytes a Curvy shield router hook decodes.
-    fn router_user_data() -> Vec<u8> {
+    /// `(1, 2, 1000, [4, 5], 6)` ABI-encoded: 224 bytes, a whole number of words.
+    fn send_data() -> Vec<u8> {
         let mut data = vec![0u8; 12];
         data.extend_from_slice(&[0xcc; Address::SIZE]);
         for value in [1u64, 2, 1000, 4, 5, 6] {
@@ -1195,18 +1198,19 @@ mod tests {
         let safe = SafePayloadGenerator::new(&key, addrs, module).send(
             router,
             HoprBalance::from(1000),
-            &router_user_data(),
+            &send_data(),
         )?;
         assert_eq!(const_hex::encode(&safe.input), ROUTED_SHIELD_MODULE_CALL);
         assert_eq!(safe.to, Some(module.into()));
 
         // The plain `send` is the bytes the module forwards to the token: after the module head
-        // (selector and five words) and before the tail's ABI padding.
+        // (selector and five words) and before the padding the module call adds to its 0x164-byte
+        // `data` argument.
         let inner = (4 + 5 * 32) * 2..(4 + 5 * 32 + 0x164) * 2;
         let basic = BasicPayloadGenerator::new((&key).into(), addrs).send(
             router,
             HoprBalance::from(1000),
-            &router_user_data(),
+            &send_data(),
         )?;
         assert_eq!(
             const_hex::encode(&basic.input),
